@@ -3,25 +3,18 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 import json
+import traceback
 from google import genai
 from .models import Portfolio, PortfolioPage, PortfolioSection, AISessionLog
 
 # -----------------------------------------------------------------
-# 1. PAGE VIEWER ENDPOINT
+# 1. PAGE VIEWER ENDPOINT (Canvas Sync Engine)
 # -----------------------------------------------------------------
 class PageListAPIView(APIView):
     """
     Fetches all structural pages from the database alongside their 
     nested layout sections to paint the central React workspace canvas.
     """
-    data.append({
-                "id": page.id,
-                "name": page.name,
-                "slug": page.slug,
-                "order": page.order,
-                "theme_accent": page.theme_accent, # <-- Inject this tracking property hook
-                "sections": sections_data
-            })
     def get(self, request):
         pages = PortfolioPage.objects.all()
         data = []
@@ -39,6 +32,7 @@ class PageListAPIView(APIView):
                 "name": page.name,
                 "slug": page.slug,
                 "order": page.order,
+                "theme_accent": page.theme_accent,
                 "sections": sections_data
             })
         return Response(data, status=status.HTTP_200_OK)
@@ -65,7 +59,6 @@ class SectionDetailAPIView(APIView):
         new_content = request.data.get('content_data')
         
         if new_content is not None:
-            # Safe update without destroying structural fields
             section.content_data = new_content
             section.save()
             return Response({"message": "Node properties updated successfully!"}, status=status.HTTP_200_OK)
@@ -94,7 +87,6 @@ class AISectionRefinementView(APIView):
         user_prompt = request.data.get('prompt')
         target_section_id = request.data.get('section_id')
 
-        # Find the specific block selected by the user. If none, grab the first fallback hero block
         if target_section_id:
             section = PortfolioSection.objects.filter(id=target_section_id).first()
         else:
@@ -106,8 +98,8 @@ class AISectionRefinementView(APIView):
         current_data = section.content_data or {}
 
         try:
-            # Initialize the official Google Gen AI Client SDK configuration
-            client = genai.Client()
+            # ⚡ EXPLICIT AUTH LINK: Enter your Gemini API key string here
+            client = genai.Client(api_key="")
             
             system_instruction = (
                 "You are an expert UI/UX copywriter and layout engine system for dynamic portfolio builders.\n"
@@ -130,20 +122,19 @@ class AISectionRefinementView(APIView):
                 config={'system_instruction': system_instruction}
             )
 
-            # Sanitize and extract the structural object text string cleanly
+            # Heavy-duty markdown code block stripper guard layer
             clean_text = response.text.strip()
-            if clean_text.startswith("```json"):
+            if "```json" in clean_text:
                 clean_text = clean_text.split("```json")[1].split("```")[0].strip()
-            elif clean_text.startswith("```"):
+            elif "```" in clean_text:
                 clean_text = clean_text.split("```")[1].split("```")[0].strip()
+            clean_text = clean_text.replace("```json", "").replace("```", "").strip()
 
             updated_content = json.loads(clean_text)
             
-            # Commit the refined AI layout parameters straight to the database
             section.content_data = updated_content
             section.save()
 
-            # Record an activity entry to render on the app status feed
             log = AISessionLog.objects.create(
                 change_type='Refinement',
                 description=f"[{section.section_type.upper()}] {user_prompt[:40]}...",
@@ -162,11 +153,13 @@ class AISectionRefinementView(APIView):
             }, status=status.HTTP_200_OK)
 
         except Exception as e:
+            print("!!! AI REFINEMENT CRASH ERROR:")
+            traceback.print_exc()
             return Response({"error": f"AI Generation breakdown: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 # -----------------------------------------------------------------
-# 5. AI TEMPLATE GENERATOR ENGINE (Initial Setup Wizard)
+# 5. AI TEMPLATE GENERATOR ENGINE (Initial Setup Wizard Concept Forger)
 # -----------------------------------------------------------------
 class AITemplateGeneratorView(APIView):
     """
@@ -179,11 +172,33 @@ class AITemplateGeneratorView(APIView):
             return Response({"error": "Please provide a design concept prompt."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            # Wipe out old design blocks on the Home page to start fresh
-            home_page, _ = PortfolioPage.objects.get_or_create(name="Home", defaults={"slug": "home", "order": 0})
+            # 🛡️ Step 1: Secure a parent Portfolio row to cleanly satisfy the foreign key constraint requirement
+            parent_portfolio, _ = Portfolio.objects.get_or_create(
+                id=1,
+                defaults={
+                    "owner_name": "Bharanidharan",
+                    "title": "AuraBuild Developer Portfolio Ecosystem"
+                }
+            )
+
+            # 🛡️ Step 2: Clear old "Home" page objects to avoid duplicate index issues completely
+            PortfolioPage.objects.filter(name="Home").delete()
+            
+            # 🛡️ Step 3: Link the parent relationship field directly to pass the SQLite Integrity constraint check
+            home_page = PortfolioPage.objects.create(
+                portfolio=parent_portfolio,
+                name="Home", 
+                slug="home", 
+                order=0, 
+                theme_accent="dark"
+            )
+            
+            # Flush out old nested section content blocks attached to this workspace node
             PortfolioSection.objects.filter(page=home_page).delete()
 
-            client = genai.Client()
+            # ⚡ EXPLICIT AUTH LINK: Enter your Gemini API key string here
+            client = genai.Client(api_key="")
+            
             system_instruction = (
                 "You are an elite web architect AI system. Your task is to interpret the user's website idea "
                 "and generate a structural array of initial layout block items in clean JSON.\n\n"
@@ -203,16 +218,16 @@ class AITemplateGeneratorView(APIView):
                 config={'system_instruction': system_instruction}
             )
 
-            # Sanitize response string wrappers if present
+            # Heavy-duty markdown code block stripper guard layer
             clean_text = response.text.strip()
-            if clean_text.startswith("```json"):
+            if "```json" in clean_text:
                 clean_text = clean_text.split("```json")[1].split("```")[0].strip()
-            elif clean_text.startswith("```"):
+            elif "```" in clean_text:
                 clean_text = clean_text.split("```")[1].split("```")[0].strip()
+            clean_text = clean_text.replace("```json", "").replace("```", "").strip()
 
             generated_layout = json.loads(clean_text)
 
-            # Loop through the blocks and commit them to SQLite
             for block in generated_layout.get('sections', []):
                 PortfolioSection.objects.create(
                     page=home_page,
@@ -221,7 +236,6 @@ class AITemplateGeneratorView(APIView):
                     content_data=block.get('content_data', {})
                 )
 
-            # Log execution run trace
             AISessionLog.objects.create(
                 change_type='Generation',
                 description=f"Generated template stack for: '{user_idea[:30]}...'",
@@ -231,4 +245,6 @@ class AITemplateGeneratorView(APIView):
             return Response({"message": "Ecosystem workspace initialized successfully!"}, status=status.HTTP_201_CREATED)
 
         except Exception as e:
+            print("!!! AI WIZARD CRASH ERROR:")
+            traceback.print_exc()
             return Response({"error": f"AI Wizard breakdown: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
