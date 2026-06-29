@@ -1,18 +1,17 @@
 from django.urls import path
 from .views import (
-    PageListAPIView, 
-    SectionDetailAPIView, 
-    AIRefinementPromptAPIView, 
+    PageListAPIView,
+    SectionDetailAPIView,
     AISectionRefinementView,
-    AITemplateGeneratorView # <-- Add this import
+    AITemplateGeneratorView
 )
 
 urlpatterns = [
     path('pages/', PageListAPIView.as_view(), name='page-list'),
     path('sections/<int:pk>/', SectionDetailAPIView.as_view(), name='section-detail'),
-    path('ai-prompt/', AIRefinementPromptAPIView.as_view(), name='ai-prompt'),
+    
+    # ⚡ MUST MATCH EXACTLY WHAT AXIOS POSTS TO (Check trailing slashes)
     path('ai-refinement/', AISectionRefinementView.as_view(), name='ai-refinement'),
     
-    # New Magic Blueprint Generator Loop Link
-    path('ai-generate-template/', AITemplateGeneratorView.as_view(), name='ai-generate-template'),
+    path('ai-generate-template/', AITemplateGeneratorView.as_view(), name='ai-template-generator'),
 ]
