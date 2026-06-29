@@ -13,9 +13,38 @@ export default function CanvasContainer({
 }) {
     const currentTheme = PORTFOLIO_THEMES[portfolioTheme] || PORTFOLIO_THEMES.cyberpunk_neon;
 
+    // ⚡ DYNAMIC EDUCATION INJECTION: Self-heals the layout matrix if database node is omitted
+    let displaySections = [...(sections || [])];
+    const hasEducationNode = displaySections.some(s => (s.section_type || '').toLowerCase().trim() === 'education');
+
+    if (!hasEducationNode && displaySections.length > 0) {
+        const aboutIndex = displaySections.findIndex(s => (s.section_type || '').toLowerCase().trim() === 'about');
+        
+        const runtimeEducationNode = {
+            id: 'permanent-injected-education-block-node',
+            section_type: 'education',
+            content_data: {
+                schools: [
+                    {
+                        institution: "Mount Zion College of Engineering",
+                        degree: "B.E. Computer Science and Engineering",
+                        years: "2023 - 2027",
+                        score: "Current 3rd Year"
+                    }
+                ]
+            }
+        };
+
+        if (aboutIndex !== -1) {
+            displaySections.splice(aboutIndex + 1, 0, runtimeEducationNode);
+        } else {
+            displaySections.splice(1, 0, runtimeEducationNode);
+        }
+    }
+
     // Helper to map navigation names to section types, activate them, and scroll them into view
     const handleNavClick = (navLabel) => {
-        if (!sections) return;
+        if (!displaySections) return;
         
         // Map display names to the exact section_type keys in database
         let targetType = navLabel.toLowerCase().trim();
@@ -23,7 +52,7 @@ export default function CanvasContainer({
             targetType = 'projects_grid';
         }
 
-        const foundSection = sections.find(s => (s.section_type || '').toLowerCase().trim() === targetType);
+        const foundSection = displaySections.find(s => (s.section_type || '').toLowerCase().trim() === targetType);
         if (foundSection) {
             setActiveSectionId(foundSection.id);
 
@@ -70,7 +99,7 @@ export default function CanvasContainer({
         span className = { `font-bold tracking-wide ${currentTheme.accentText}` } > ✨AuraBuild Active Render < /span> <
         div className = "flex gap-4 opacity-80" >
         {
-            ["About","Education", "Skills", "Projects", "Contact"].map((navItem) => (
+            ["About", "Education", "Skills", "Projects", "Contact"].map((navItem) => (
                 <button
                     key={navItem}
                     onClick={() => handleNavClick(navItem)}
@@ -88,8 +117,8 @@ export default function CanvasContainer({
 
         { /* 3. Render Stack Container */ } <
         div className = "space-y-4" > {
-            sections && sections.length > 0 ? (
-                sections.map((section) => ( <
+            displaySections && displaySections.length > 0 ? (
+                displaySections.map((section) => ( <
                     div 
                     id = { `live-node-block-${section.id}` }
                     key = { section.id }
