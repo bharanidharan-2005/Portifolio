@@ -13,15 +13,19 @@ export default function CanvasContainer({
 }) {
     const currentTheme = PORTFOLIO_THEMES[portfolioTheme] || PORTFOLIO_THEMES.cyberpunk_neon;
 
-    // ⚡ DYNAMIC EDUCATION INJECTION: Self-heals the layout matrix if database node is omitted
+    // ⚡ SAFE WORKSPACE DATA SEEDING: Prepare the display array seamlessly
     let displaySections = [...(sections || [])];
     const hasEducationNode = displaySections.some(s => (s.section_type || '').toLowerCase().trim() === 'education');
+
+    // Find if there is an active database section to inherit an operational fallback update ID
+    const baseFallbackId = displaySections.length > 0 ? displaySections[0].id : 'default-education-field-id';
 
     if (!hasEducationNode && displaySections.length > 0) {
         const aboutIndex = displaySections.findIndex(s => (s.section_type || '').toLowerCase().trim() === 'about');
         
         const runtimeEducationNode = {
-            id: 'permanent-injected-education-block-node',
+            // Bind securely to the active selection machine state 
+            id: activeSectionId === 'education' ? 'education' : baseFallbackId + '-education-node',
             section_type: 'education',
             content_data: {
                 schools: [
@@ -46,7 +50,6 @@ export default function CanvasContainer({
     const handleNavClick = (navLabel) => {
         if (!displaySections) return;
         
-        // Map display names to the exact section_type keys in database
         let targetType = navLabel.toLowerCase().trim();
         if (targetType === 'projects') {
             targetType = 'projects_grid';
@@ -54,6 +57,7 @@ export default function CanvasContainer({
 
         const foundSection = displaySections.find(s => (s.section_type || '').toLowerCase().trim() === targetType);
         if (foundSection) {
+            // Force focus activation state variables cleanly
             setActiveSectionId(foundSection.id);
 
             // ⚡ Smooth scroll live view focus directly to the selected element node container
@@ -129,7 +133,7 @@ export default function CanvasContainer({
                         }
                     }
                     className = { `relative rounded-xl border-2 p-4 transition-all duration-200 cursor-pointer ${
-                                    section.id === activeSectionId ? 'border-purple-500 bg-purple-500/5' : 'border-transparent'
+                                    section.id === activeSectionId || (section.section_type === 'education' && String(activeSectionId).includes('education')) ? 'border-purple-500 bg-purple-500/5' : 'border-transparent'
                                 }` } >
                     <
                     RenderPageContent section = { section }
