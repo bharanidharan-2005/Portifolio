@@ -22,20 +22,18 @@ export default function CanvasContainer({
 
     if (!hasEducationNode && displaySections.length > 0) {
         const aboutIndex = displaySections.findIndex(s => (s.section_type || '').toLowerCase().trim() === 'about');
-        
+
         const runtimeEducationNode = {
             // Bind securely to the active selection machine state 
             id: activeSectionId === 'education' ? 'education' : baseFallbackId + '-education-node',
             section_type: 'education',
             content_data: {
-                schools: [
-                    {
-                        institution: "Mount Zion College of Engineering",
-                        degree: "B.E. Computer Science and Engineering",
-                        years: "2023 - 2027",
-                        score: "Current 3rd Year"
-                    }
-                ]
+                schools: [{
+                    institution: "Mount Zion College of Engineering",
+                    degree: "B.E. Computer Science and Engineering",
+                    years: "2023 - 2027",
+                    score: "Current 3rd Year"
+                }]
             }
         };
 
@@ -49,7 +47,7 @@ export default function CanvasContainer({
     // Helper to map navigation names to section types, activate them, and scroll them into view
     const handleNavClick = (navLabel) => {
         if (!displaySections) return;
-        
+
         let targetType = navLabel.toLowerCase().trim();
         if (targetType === 'projects') {
             targetType = 'projects_grid';
@@ -101,21 +99,19 @@ export default function CanvasContainer({
         div className = { `border-b pb-3 mb-6 flex justify-between items-center text-[11px] font-medium select-none ${currentTheme.border}` } >
         <
         span className = { `font-bold tracking-wide ${currentTheme.accentText}` } > ✨AuraBuild Active Render < /span> <
-        div className = "flex gap-4 opacity-80" >
-        {
-            ["About", "Education", "Skills", "Projects", "Contact"].map((navItem) => (
-                <button
-                    key={navItem}
-                    onClick={() => handleNavClick(navItem)}
-                    className={`bg-transparent border-none p-0 font-medium cursor-pointer transition-colors hover:opacity-100 opacity-80 ${
+        div className = "flex gap-4 opacity-80" > {
+            ["About", "Education", "Skills", "Projects", "Contact"].map((navItem) => ( <
+                button key = { navItem }
+                onClick = {
+                    () => handleNavClick(navItem) }
+                className = { `bg-transparent border-none p-0 font-medium cursor-pointer transition-colors hover:opacity-100 opacity-80 ${
                         portfolioTheme === 'minimal_clean' ? 'text-slate-900' : 'text-white'
-                    }`}
-                >
-                    {navItem}
-                </button>
+                    }` } >
+                { navItem } <
+                /button>
             ))
-        }
-        < /
+        } <
+        /
         div > <
         /div>
 
@@ -123,8 +119,7 @@ export default function CanvasContainer({
         div className = "space-y-4" > {
             displaySections && displaySections.length > 0 ? (
                 displaySections.map((section) => ( <
-                    div 
-                    id = { `live-node-block-${section.id}` }
+                    div id = { `live-node-block-${section.id}` }
                     key = { section.id }
                     onClick = {
                         (e) => {
