@@ -13,3 +13,6 @@ python manage.py migrate
 python manage.py createsuperuser
 
 python manage.py runserver
+
+for API set in cmd
+setx GEMINI_API_KEY "your_actual_gemini_api_key_here"
