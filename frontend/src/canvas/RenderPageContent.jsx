@@ -41,13 +41,20 @@ export default function RenderPageContent({ section, portfolioTheme }) {
             )}
 
             {/* --------------------------------------------------------- */}
-            {/* 3. EDUCATION SECTION RENDERER */}
+            {/* 3. EDUCATION SECTION RENDERER (PERMANENT SEED LOGIC) */}
             {/* --------------------------------------------------------- */}
-            {currentType === 'education' && (
-                <div className="space-y-4">
+            {((currentType === 'education') || (currentType === 'skills' && !data.items)) && (
+                <div className="space-y-4 mb-4">
                     <h3 className="text-xs font-black tracking-wider text-purple-400 uppercase">Educational Background</h3>
                     <div className="space-y-4">
-                        {(data.schools || []).map((school, index) => (
+                        {(data.schools && data.schools.length > 0 ? data.schools : [
+                            { 
+                                institution: "Mount Zion College of Engineering", 
+                                degree: "B.E. Computer Science and Engineering (3rd Year)", 
+                                years: "2023 - 2027", 
+                                score: "Pursuing" 
+                            }
+                        ]).map((school, index) => (
                             <div key={index} className="border-l-2 border-purple-500/30 pl-4 py-1 space-y-1 hover:border-purple-500 transition-all bg-[#13151c]/30 p-3 rounded-r-xl">
                                 <div className="flex justify-between items-start gap-4">
                                     <h4 className="text-xs font-bold text-white">{school.institution}</h4>
@@ -56,7 +63,7 @@ export default function RenderPageContent({ section, portfolioTheme }) {
                                 <p className="text-[11px] text-slate-300 font-medium">{school.degree}</p>
                                 {school.score && (
                                     <p className="text-[10px] text-slate-500 mt-1">
-                                        Performance: <span className="text-slate-400 font-semibold">{school.score}</span>
+                                        Performance Metric: <span className="text-slate-400 font-semibold">{school.score}</span>
                                     </p>
                                 )}
                             </div>
@@ -68,7 +75,7 @@ export default function RenderPageContent({ section, portfolioTheme }) {
             {/* --------------------------------------------------------- */}
             {/* 4. SKILLS SECTION RENDERER */}
             {/* --------------------------------------------------------- */}
-            {currentType === 'skills' && (
+            {currentType === 'skills' && data.items && (
                 <div className="space-y-4">
                     <h3 className="text-xs font-black tracking-wider text-purple-400 uppercase">Core Expertise Metrics</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
