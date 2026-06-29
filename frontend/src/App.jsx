@@ -31,7 +31,7 @@ export default function App() {
     const [siteIdea, setSiteIdea] = useState("");
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // Fetch state array rows layout loop from Python
+    // Fetch state array rows layout loop from Python backend engine
     const fetchWorkspaceData = () => {
         API.get('pages/')
             .then(res => {
@@ -53,13 +53,13 @@ export default function App() {
         }
     }, [onboardingStep]);
 
-    // Handle live generative modifications from the prompt box or multipart file uploads
+    // Handle live generative modifications from prompt box or single-section file attachments
     const handleNewPrompt = (promptPayload, isFile = false) => {
         let requestData;
         let configHeaders = {};
 
         if (isFile) {
-            // 📎 Retain multi-part structural streaming headers for physical resume documents
+            // 📎 Keep multipart form stream intact for multi-part file uploads
             requestData = promptPayload;
             configHeaders = {
                 headers: {
@@ -67,7 +67,7 @@ export default function App() {
                 }
             };
         } else {
-            // 💬 Default JSON structure format for ordinary conversational chat input text
+            // 💬 Standard JSON structure payload for simple chat string text refinement
             requestData = {
                 prompt: promptPayload,
                 section_id: activeSectionId
@@ -78,30 +78,55 @@ export default function App() {
             .then(res => {
                 setAiLogs(prev => [res.data.log, ...prev]);
                 
-                // 🔄 Sync updated data changes right back down to state variables
+                // ✨ REFRESH ENGINE: Pull down the freshly mutated canvas pages cleanly
                 API.get('pages/')
                     .then(pagesRes => {
                         setPages(pagesRes.data);
                         if (pagesRes.data.length > 0 && activePage) {
                             const updatedPage = pagesRes.data.find(p => p.name === activePage);
                             if (updatedPage && updatedPage.sections && updatedPage.sections.length > 0) {
-                                // Default highlight selection target if one isn't currently assigned
                                 if (!activeSectionId) {
                                     setActiveSectionId(updatedPage.sections[0].id);
                                 }
                             }
                         }
                     })
-                    .catch(syncErr => console.error("Post-parse dataset canvas update failure:", syncErr));
+                    .catch(syncErr => console.error("Post-parse workspace matrix sync failed:", syncErr));
             })
             .catch(err => console.error("AI mutation pipeline error:", err));
     };
 
+    // Callback Handler triggered when the dedicated whole-resume component processes successfully
+    const handleMasterResumeDataExtracted = (fullExtractedData) => {
+        // Force instant workspace refresh from database to pull down all 6 updated segments simultaneously
+        API.get('pages/')
+            .then(res => {
+                setPages(res.data);
+                // Highlight the hero block element row to display visual field changes immediately
+                if (res.data.length > 0 && res.data[0].sections && res.data[0].sections.length > 0) {
+                    setActiveSectionId(res.data[0].sections[0].id);
+                }
+            })
+            .catch(err => console.error("Post-upload schema synchronizer refresh failed:", err));
+    };
+
     // Inline Direct Save Handler for Manual Properties Bar input updates
     const handleManualSectionSave = (sectionId, updatedContentData) => {
+        // Safety lock check: bypass remote patch pipelines if clicking the custom frontend layout runtime node
+        if (String(sectionId).includes('education')) {
+            // Update local display array safely in memory before backend seeding processes execute
+            setPages(prevPages => prevPages.map(page => ({
+                ...page,
+                sections: page.sections.map(sec => 
+                    sec.section_type === 'education' ? { ...sec, content_data: updatedContentData } : sec
+                )
+            })));
+            return;
+        }
+
         API.patch(`sections/${sectionId}/`, { content_data: updatedContentData })
             .then(() => {
-                fetchWorkspaceData(); // Instant non-destructive reload
+                fetchWorkspaceData(); // Instant non-destructive reload matrix
             })
             .catch(err => console.error("Manual adjustment update error:", err));
     };
@@ -126,7 +151,7 @@ export default function App() {
     };
 
     const handlePreferenceSelect = (field, value) => {
-        const updatedData = {...userData, [field]: value };
+        const updatedData = { ...userData, [field]: value };
         setUserData(updatedData);
         // Step forward only if both field requirements have selection parameters satisfied
         if (updatedData.department && updatedData.theme) {
@@ -202,7 +227,7 @@ export default function App() {
                     {onboardingStep === 'CREDENTIALS' && (
                         <form onSubmit={handleCredentialsSubmit} className="space-y-4">
                             <p className="text-xs text-[#a855f7] font-semibold">Pleasure meeting you, {userData.name}!</p>
-                            <input type="type" placeholder="name@domain.com" className="w-full bg-[#181a24] border border-[#232635] rounded-xl px-4 py-3 text-xs outline-none text-white focus:border-[#a855f7]" value={userData.email} onChange={(e) => setUserData({...userData, email: e.target.value })} />
+                            <input type="text" placeholder="name@domain.com" className="w-full bg-[#181a24] border border-[#232635] rounded-xl px-4 py-3 text-xs outline-none text-white focus:border-[#a855f7]" value={userData.email} onChange={(e) => setUserData({...userData, email: e.target.value })} />
                             <input type="password" placeholder="••••••••" className="w-full bg-[#181a24] border border-[#232635] rounded-xl px-4 py-3 text-xs outline-none text-white focus:border-[#a855f7]" value={userData.password} onChange={(e) => setUserData({...userData, password: e.target.value })} />
                             <button type="submit" className="w-full bg-[#a855f7] text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest">Verify Credentials</button>
                         </form>
@@ -319,7 +344,8 @@ export default function App() {
                     activeTool={activeTool} 
                     pages={pages} 
                     userData={userData} 
-                    setUserData={setUserData} 
+                    setUserData={setUserData}
+                    onDataExtracted={handleMasterResumeDataExtracted}
                 />
             </div>
         </div>
