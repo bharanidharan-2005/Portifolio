@@ -34,6 +34,7 @@ class PortfolioSection(models.Model):
     SECTION_CHOICES = [
         ('hero', 'Hero (Name & Headline)'),
         ('about', 'About Me Summary'),
+        ('education', 'Educational Background'),
         ('skills', 'Skills with Levels'),
         ('projects_grid', 'Featured Projects Grid'),
         ('contact', 'Contact Action Channel'),
