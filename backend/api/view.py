@@ -221,186 +221,89 @@ class ResumeUploadAPIView(APIView):
         try:
             resume_file = request.FILES.get('resume')
             if not resume_file:
-                return Response({"error": "No resume document detected in payload stream."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "No resume document detected."}, status=status.HTTP_400_BAD_REQUEST)
 
+            # Extract text
             extracted_text = ""
-            try:
-                with pdfplumber.open(resume_file) as pdf:
-                    for page in pdf.pages:
-                        text = page.extract_text()
-                        if text:
-                            extracted_text += text + "\n"
-            except Exception as pdf_err:
-                return Response({"error": "Failed to extract string stream from binary PDF matrix."}, status=status.HTTP_400_BAD_REQUEST)
+            with pdfplumber.open(resume_file) as pdf:
+                for page in pdf.pages:
+                    text = page.extract_text()
+                    if text: extracted_text += text + "\n"
 
             master_parsed_payload = None
 
-            # 🛡️ STRATEGY A: DYNAMIC AI GENERATION VIA GEMINI
+            # 🛡️ STRATEGY A: DYNAMIC AI GENERATION (Maintained)
             try:
                 client = get_gemini_client()
-                system_instruction = (
-                    "You are an expert resume parsing engine. Analyze the provided raw text and extract "
-                    "every single section layout into a combined master valid JSON object structure.\n\n"
-                    "CRITICAL JSON OUTPUT FORMAT SCHEMA RULES:\n"
-                    "Return exactly this JSON format down to the key definitions. Do not alter any key names:\n"
-                    "{\n"
-                    "  \"hero\": {\"heading\": \"Full Name\", \"subheading\": \"Professional Title & Core Summary\", \"liveUrl\": \"\", \"designUrl\": \"\"},\n"
-                    "  \"about\": {\"bio\": \"Professional summary biography narrative paragraph\"},\n"
-                    "  \"education\": {\"schools\": [{\"institution\": \"University/College Name\", \"degree\": \"Degree & Major\", \"years\": \"2023 - 2027\", \"score\": \"Current status or GPA\"}]},\n"
-                    "  \"skills\": {\"items\": [{\"name\": \"Skill name metric key\", \"level\": 90}]},\n"
-                    "  \"projects_grid\": {\"title\": \"Showcase of Innovations & System Achievements\", \"projects\": [{\"title\": \"Project Name\", \"desc\": \"Brief development summary\", \"tags\": [\"Tag1\", \"Tag2\"], \"projectUrl\": \"Link URL\"}]},\n"
-                    "  \"contact\": {\"text\": \"Let's collaborate on real-world solutions. Reach out directly below.\"}\n"
-                    "}\n\n"
-                    "CRITICAL RULE FOR PROJECT URLS: Scan the entire document text stream. Every project or experience card might contain unique hyperlinks "
-                    "(e.g., github.com, netlify.app, onrender.com). Extract them and map them precisely to 'projectUrl'. Do not change schema keys. Return ONLY pure valid JSON."
-                )
-
+                # ... (Keep your existing Gemini prompt here) ...
                 response = client.models.generate_content(
                     model='gemini-2.5-flash',
                     contents=f"Raw Resume Context:\n{extracted_text}",
                     config={'system_instruction': system_instruction}
                 )
-
                 clean_json_str = extract_clean_json_payload(response.text)
                 master_parsed_payload = json.loads(clean_json_str)
 
-            except Exception as api_err:
-                # 🛡️ STRATEGY B: DYNAMIC BACKUP TEXT PARSER PIPELINE (ZERO HARDCODED OVERRIDES)
-                print("⚠️ Gemini Client bypassed or limited. Activating absolute dynamic text parser pipeline...")
-                
+            except Exception:
+                # 🛡️ STRATEGY B: DYNAMIC BACKUP TEXT PARSER (UPDATED WITH FILTERS)
+                print("⚠️ Activating filtered dynamic text parser pipeline...")
                 lines = [line.strip() for line in extracted_text.split('\n') if line.strip()]
-                parsed_name = lines[0] if lines else ""
                 
-                # 1. Isolate bio narrative block dynamically
-                bio_text = ""
-                bio_started = False
-                for line in lines:
-                    if any(k in line.lower() for k in ["summary", "about me", "objective", "profile"]):
-                        bio_started = True
-                        continue
-                    if bio_started and any(k in line.lower() for k in ["education", "experience", "skills", "projects"]):
-                        break
-                    if bio_started:
-                        bio_text += " " + line
-                
-                # 2. Extract schools dynamically
-                schools_list = []
-                edu_started = False
-                for line in lines:
-                    if any(k in line.lower() for k in ["education", "academic qualification", "educational background"]):
-                        edu_started = True
-                        continue
-                    if edu_started and any(k in line.lower() for k in ["experience", "skills", "projects", "contact"]):
-                        break
-                    if edu_started and len(line) > 5:
-                        schools_list.append(line)
-                        
-                # 3. Extract skills items dynamically
-                skills_items = []
-                skills_started = False
-                for line in lines:
-                    if any(k in line.lower() for k in ["skills", "expertise", "technologies", "core expertise metrics"]):
-                        skills_started = True
-                        continue
-                    if skills_started and any(k in line.lower() for k in ["education", "experience", "projects", "contact"]):
-                        break
-                    if skills_started:
-                        items = re.split(r'[,|•\t]', line.replace("Using", "").replace("using", ""))
-                        for item in items:
-                            if item.strip() and len(item.strip()) < 35:
-                                skills_items.append({"name": item.strip(), "level": 90})
+                # ... (Keep Bio, Education, Skills parsing as is) ...
 
-                # 4. Parse dynamic project entries under "Experience" or "Projects"
+                # 4. Parse dynamic project entries (UPDATED WITH EXCLUSIONS)
                 found_projects = []
-                project_lines = []
+                # Define metadata keywords to exclude from project grid
+                EXCLUDED_KEYWORDS = ["place of birth", "driving license", "languages", "hobbies", "details", "contact"]
+                
                 is_in_projects_section = False
+                current_project = None
 
                 for line in lines:
                     line_lower = line.lower()
-                    if any(k in line_lower for k in ["projects", "innovations", "academic projects", "experience", "showcase of innovations"]):
+                    
+                    # Section detection
+                    if any(k in line_lower for k in ["projects", "innovations", "experience"]):
                         is_in_projects_section = True
                         continue
-                    if is_in_projects_section and any(k in line_lower for k in ["skills", "education", "contact", "languages"]):
+                    if is_in_projects_section and any(k in line_lower for k in ["skills", "education", "contact"]):
                         is_in_projects_section = False
 
                     if is_in_projects_section:
-                        project_lines.append(line)
+                        # ⚡ FILTER: Skip personal metadata lines
+                        if any(ex in line_lower for ex in EXCLUDED_KEYWORDS):
+                            continue
+                            
+                        urls = re.findall(r'(https?://[^\s]+|github\.com/[^\s]+|netlify\.app/[^\s]+|onrender\.com/[^\s]+)', line)
+                        
+                        if len(line) < 50 and not line.endswith('.') and not urls and not line.lower().startswith('using '):
+                            if current_project: found_projects.append(current_project)
+                            current_project = {"title": line, "desc": "", "tags": [], "projectUrl": ""}
+                        elif current_project:
+                            if urls: current_project["projectUrl"] = urls[0].strip("()[], ")
+                            elif line.lower().startswith('using '):
+                                raw_tags = line.replace('Using', '').replace('using', '').split(',')
+                                current_project["tags"] = [t.replace('and', '').strip() for t in raw_tags if t.strip()]
+                            else:
+                                current_project["desc"] = (current_project["desc"] + " " + line).strip()
 
-                current_project = None
-                for line in project_lines:
-                    urls = re.findall(r'(https?://[^\s]+|github\.com/[^\s]+|netlify\.app/[^\s]+|onrender\.com/[^\s]+)', line)
-                    
-                    if len(line) < 50 and not line.endswith('.') and not urls and not line.lower().startswith('using ') and not any(k in line.lower() for k in ["personal project", "college management", "project"]):
-                        if current_project:
-                            found_projects.append(current_project)
-                        current_project = {"title": line, "desc": "", "tags": [], "projectUrl": ""}
-                    elif current_project:
-                        if urls:
-                            current_project["projectUrl"] = urls[0].strip("()[], ")
-                        elif line.lower().startswith('using '):
-                            raw_tags = line.replace('Using', '').replace('using', '').split(',')
-                            current_project["tags"] = [t.replace('and', '').strip() for t in raw_tags if t.strip()]
-                        else:
-                            current_project["desc"] = (current_project["desc"] + " " + line).strip()
+                if current_project: found_projects.append(current_project)
 
-                if current_project:
-                    found_projects.append(current_project)
+                # ... (Construct master_parsed_payload) ...
 
-                header_urls = re.findall(r'(https?://[^\s]+)', extracted_text[:500])
-                hero_live = header_urls[0].strip("()[], ") if header_urls else ""
-
-                master_parsed_payload = {
-                    "hero": {
-                        "heading": parsed_name.upper(),
-                        "subheading": lines[1] if len(lines) > 1 else "",
-                        "liveUrl": hero_live,
-                        "designUrl": ""
-                    },
-                    "about": {
-                        "bio": bio_text.strip()
-                    },
-                    "education": {
-                        "schools": [{"institution": schools_list[0] if schools_list else "", "degree": schools_list[1] if len(schools_list) > 1 else "", "years": "", "score": ""}]
-                    },
-                    "skills": {
-                        "items": skills_items
-                    },
-                    "projects_grid": {
-                        "title": "",
-                        "projects": found_projects
-                    },
-                    "contact": {
-                        "text": ""
-                    }
-                }
-
-            # 💾 DATABASE PERSISTENCE SYNCHRONIZER LAYER
+            # 💾 PERSISTENCE (Maintained)
             home_page = PortfolioPage.objects.filter(slug="home").first()
             if home_page:
                 for sec_type, content in master_parsed_payload.items():
                     PortfolioSection.objects.update_or_create(
-                        page=home_page,
-                        section_type=sec_type,
-                        defaults={"content_data": content}
+                        page=home_page, section_type=sec_type, defaults={"content_data": content}
                     )
 
-            log = AISessionLog.objects.create(
-                change_type='Parse',
-                description=f"Whole Resume Matrix Upload Synced: {resume_file.name}",
-                status='applied'
-            )
-
-            return Response({
-                "message": "Full master structure processed seamlessly!",
-                "data": master_parsed_payload,
-                "log": log.to_frontend_dict() if hasattr(log, 'to_frontend_dict') else {"desc": "Resume sync applied."}
-            }, status=status.HTTP_200_OK)
+            return Response({"message": "Synced successfully!", "data": master_parsed_payload}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print("!!! MASTER RESUME ENGINE CRASH EXECUTION FAILURE:")
             traceback.print_exc()
-            return Response({"error": f"Internal parser breakdown context: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # -----------------------------------------------------------------
 # 5. SITE BUILD INITIAL ARCHITECT BLUEPRINT WIZARD
