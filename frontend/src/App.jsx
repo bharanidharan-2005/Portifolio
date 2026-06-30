@@ -38,7 +38,6 @@ export default function App() {
                 setPages(res.data);
                 if (res.data.length > 0 && !activePage) {
                     setActivePage(res.data[0].name);
-                    // Set initial block active selection if nodes exist
                     if (res.data[0].sections && res.data[0].sections.length > 0) {
                         setActiveSectionId(res.data[0].sections[0].id);
                     }
@@ -59,7 +58,6 @@ export default function App() {
         let configHeaders = {};
 
         if (isFile) {
-            // 📎 Keep multipart form stream intact for multi-part file uploads
             requestData = promptPayload;
             configHeaders = {
                 headers: {
@@ -67,7 +65,6 @@ export default function App() {
                 }
             };
         } else {
-            // 💬 Standard JSON structure payload for simple chat string text refinement
             requestData = {
                 prompt: promptPayload,
                 section_id: activeSectionId
@@ -96,13 +93,10 @@ export default function App() {
             .catch(err => console.error("AI mutation pipeline error:", err));
     };
 
-    // Callback Handler triggered when the dedicated whole-resume component processes successfully
     const handleMasterResumeDataExtracted = (fullExtractedData) => {
-        // Force instant workspace refresh from database to pull down all 6 updated segments simultaneously
         API.get('pages/')
             .then(res => {
                 setPages(res.data);
-                // Highlight the hero block element row to display visual field changes immediately
                 if (res.data.length > 0 && res.data[0].sections && res.data[0].sections.length > 0) {
                     setActiveSectionId(res.data[0].sections[0].id);
                 }
@@ -110,11 +104,8 @@ export default function App() {
             .catch(err => console.error("Post-upload schema synchronizer refresh failed:", err));
     };
 
-    // Inline Direct Save Handler for Manual Properties Bar input updates
     const handleManualSectionSave = (sectionId, updatedContentData) => {
-        // Safety lock check: bypass remote patch pipelines if clicking the custom frontend layout runtime node
         if (String(sectionId).includes('education')) {
-            // Update local display array safely in memory before backend seeding processes execute
             setPages(prevPages => prevPages.map(page => ({
                 ...page,
                 sections: page.sections.map(sec => 
@@ -126,7 +117,7 @@ export default function App() {
 
         API.patch(`sections/${sectionId}/`, { content_data: updatedContentData })
             .then(() => {
-                fetchWorkspaceData(); // Instant non-destructive reload matrix
+                fetchWorkspaceData();
             })
             .catch(err => console.error("Manual adjustment update error:", err));
     };
@@ -153,13 +144,11 @@ export default function App() {
     const handlePreferenceSelect = (field, value) => {
         const updatedData = { ...userData, [field]: value };
         setUserData(updatedData);
-        // Step forward only if both field requirements have selection parameters satisfied
         if (updatedData.department && updatedData.theme) {
             setOnboardingStep('CONCEPT');
         }
     };
 
-    // Triggers master template matrix configuration on the Python framework side
     const handleConceptGeneration = (e) => {
         e.preventDefault();
         if (!siteIdea.trim()) return;
@@ -172,7 +161,6 @@ export default function App() {
                 setIsGenerating(false);
                 setErrorMessage("");
                 
-                // ⚡ SECURE STATE SYNC FIX: Fetch and cache updated row array contents cleanly right here
                 API.get('pages/')
                     .then(res => {
                         setPages(res.data);
@@ -182,7 +170,7 @@ export default function App() {
                                 setActiveSectionId(res.data[0].sections[0].id);
                             }
                         }
-                        setOnboardingStep('WORKSPACE'); // Unlocks studio workspace view context
+                        setOnboardingStep('WORKSPACE');
                     })
                     .catch(syncErr => {
                         console.error("Post-generation workspace matrix sync failed:", syncErr);
@@ -196,16 +184,10 @@ export default function App() {
             });
     };
 
-    // -----------------------------------------------------------------
-    // RENDER LEVEL A: ONBOARDING ENGINE LAYER (with Skip Controller Link)
-    // -----------------------------------------------------------------
     if (onboardingStep !== 'WORKSPACE') {
         return (
             <div className="flex flex-col h-screen w-screen bg-[#0d0e12] items-center justify-center font-sans p-4 relative">
-
-                {/* Quick Skip Dev Toggle Shortcut at the Top */}
                 <button onClick={() => setOnboardingStep('WORKSPACE')} className="absolute top-6 right-6 text-[10px] bg-purple-600/10 hover:bg-purple-600/20 text-purple-400 font-bold px-3 py-1.5 border border-purple-500/20 rounded-lg transition-all">⏩Skip Setup wizard</button>
-
                 <div className="w-full max-w-md bg-[#13151c] border border-[#1f222c] rounded-2xl p-8 shadow-2xl">
                     <div className="flex items-center gap-2.5 mb-6 justify-center">
                         <span className="w-8 h-8 bg-[#a855f7] rounded-xl flex items-center justify-center font-black text-white text-sm shadow-lg">A</span>
@@ -257,15 +239,10 @@ export default function App() {
                             <p className="text-xs text-purple-400 font-semibold">✨Let's forge your layout matrix framework</p>
                             <div>
                                 <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-500 mb-2">Describe your portfolio design theme goal</label>
-                                <textarea rows="3" autoFocus placeholder="e.g., An IoT developer site showcasing smart sensor stations with dark purple modern cards and clean tracking project specs..." className="w-full bg-[#181a24] border border-[#232635] rounded-xl px-4 py-3 text-xs outline-none text-white focus:border-purple-500 resize-none" value={siteIdea} onChange={(e) => setSiteIdea(e.target.value)} disabled={isGenerating} />
+                                <textarea rows="3" autoFocus placeholder="e.g., An IoT developer site..." className="w-full bg-[#181a24] border border-[#232635] rounded-xl px-4 py-3 text-xs outline-none text-white focus:border-purple-500 resize-none" value={siteIdea} onChange={(e) => setSiteIdea(e.target.value)} disabled={isGenerating} />
                             </div>
                             <button type="submit" disabled={isGenerating || !siteIdea.trim()} className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white font-bold py-3 rounded-xl text-xs uppercase tracking-widest transition-colors flex justify-center items-center gap-2">
-                                {isGenerating ? (
-                                    <>
-                                        <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                                        Assembling Architecture Layouts...
-                                    </>
-                                ) : "Generate AI Template Blueprint"}
+                                {isGenerating ? "Assembling Architecture Layouts..." : "Generate AI Template Blueprint"}
                             </button>
                         </form>
                     )}
@@ -274,16 +251,12 @@ export default function App() {
         );
     }
 
-    // -----------------------------------------------------------------
-    // RENDER LEVEL B: CORE WORKSPACE STUDIO LAYER (Studio Uniformly Dark)
-    // -----------------------------------------------------------------
     const activePageObj = pages.find(p => p.name === activePage);
     const visibleSections = activePageObj ? activePageObj.sections : [];
     const currentSelectedSection = visibleSections.find(s => s.id === activeSectionId);
 
     return (
         <div className="flex flex-col h-screen w-screen font-sans overflow-hidden select-none bg-[#0d0e12] text-slate-200">
-            {/* Header Navigation Bar */}
             <header className="h-14 border-b border-[#1f222c] bg-[#13151c] px-6 flex justify-between items-center text-sm shrink-0">
                 <div className="flex items-center gap-8">
                     <div className="flex items-center gap-2">
@@ -330,7 +303,10 @@ export default function App() {
                         activePage={activePage} 
                         sections={visibleSections} 
                         activeSectionId={activeSectionId} 
-                        setActiveSectionId={setActiveSectionId} 
+                        setActiveSectionId={(id) => {
+                            setActiveSectionId(id);
+                            // ⚡ FIX: Leave activeTool completely alone so it honors whichever tab is active (Home vs AI)
+                        }} 
                         portfolioTheme={userData.theme} 
                     />
                 </main>
