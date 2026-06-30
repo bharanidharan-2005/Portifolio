@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import API from '../api'; 
 import { PORTFOLIO_THEMES } from '../canvas/themes';
 
@@ -13,9 +13,12 @@ export default function AIRefinementPanel({
     setUserData,
     onDataExtracted 
 }) {
-    const [promptText, setPromptText] = React.useState("");
-    const fileInputRef = React.useRef(null);
-    const [localContent, setLocalContent] = React.useState({});
+    const [promptText, setPromptText] = useState("");
+    const [studioSubTab, setStudioSubTab] = useState("Generate"); 
+    const [localContent, setLocalContent] = useState({});
+    const [reviewData, setReviewData] = useState(null);
+    const [loadingReview, setLoadingReview] = useState(false);
+    const fileInputRef = useRef(null);
 
     React.useEffect(() => {
         if (selectedSection && selectedSection.content_data) {
@@ -24,6 +27,22 @@ export default function AIRefinementPanel({
             setLocalContent({});
         }
     }, [selectedSection]);
+
+    // ⚡ FETCH LIVE BACKEND REVIEW METRICS DYNAMICALLY ON CLICKING THE REVIEW SUB-TAB
+    useEffect(() => {
+        if (studioSubTab === 'Review') {
+            setLoadingReview(true);
+            API.get('portfolio-review/')
+                .then(res => {
+                    setReviewData(res.data);
+                    setLoadingReview(false);
+                })
+                .catch(err => {
+                    console.error("Failed to load portfolio analysis metrics:", err);
+                    setLoadingReview(false);
+                });
+        }
+    }, [studioSubTab, pages]);
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -59,7 +78,6 @@ export default function AIRefinementPanel({
         }
     };
 
-    // ⚡ COMPILE AND DOWNLOAD STATIC STANDALONE PORTFOLIO HTML FILE MATCHING CURRENT UI/UX
     const triggerHtmlWebsiteDownload = () => {
         if (!pages || pages.length === 0) {
             alert("No data structure sections found to build.");
@@ -67,13 +85,9 @@ export default function AIRefinementPanel({
         }
 
         const activeThemeKey = userData.theme || 'cyberpunk_neon';
-        const currentTheme = PORTFOLIO_THEMES[activeThemeKey] || PORTFOLIO_THEMES.cyberpunk_neon;
         const isMinimal = activeThemeKey === 'minimal_clean';
-
-        // Extract sections from first page (Home)
         const activeSections = pages[0].sections || [];
 
-        // Build HTML component parts cleanly
         let sectionsHtml = '';
 
         activeSections.forEach(sec => {
@@ -82,7 +96,6 @@ export default function AIRefinementPanel({
 
             if (type === 'hero') {
                 sectionsHtml += `
-                <!-- 1. HERO SECTION -->
                 <section class="text-center py-16 space-y-6 animate-fade-in">
                     <h1 class="text-4xl md:text-5xl font-black tracking-tight uppercase ${isMinimal ? 'text-slate-900' : 'text-white'}">
                         ${data.heading || 'YOUR NAME'}
@@ -90,16 +103,10 @@ export default function AIRefinementPanel({
                     <p class="text-base max-w-xl mx-auto leading-relaxed ${isMinimal ? 'text-slate-600' : 'text-slate-400'}">
                         ${data.subheading || 'Professional Track'}
                     </p>
-                    <div class="flex justify-center gap-4 pt-2">
-                        ${data.liveUrl ? `<a href="${data.liveUrl.startsWith('http') ? data.liveUrl : 'https://' + data.liveUrl}" target="_blank" rel="noopener" class="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl transition-all shadow-lg shadow-purple-600/20 no-underline">See Live</a>` : ''}
-                        ${data.designUrl ? `<a href="${data.designUrl.startsWith('http') ? data.designUrl : 'https://' + data.designUrl}" target="_blank" rel="noopener" class="px-5 py-2.5 border ${isMinimal ? 'border-slate-300 text-slate-700 hover:bg-slate-100' : 'border border-[#232635] text-slate-300 hover:bg-slate-900'} text-xs font-bold rounded-xl transition-all no-underline">Design</a>` : ''}
-                    </div>
                 </section>\n`;
             }
-
             else if (type === 'about') {
                 sectionsHtml += `
-                <!-- 2. ABOUT ME SECTION -->
                 <section class="py-6 space-y-2">
                     <h2 class="text-xs uppercase font-black tracking-widest text-purple-400">About Me</h2>
                     <p class="text-sm leading-relaxed font-medium ${isMinimal ? 'text-slate-600' : 'text-slate-400'}">
@@ -107,130 +114,21 @@ export default function AIRefinementPanel({
                     </p>
                 </section>\n`;
             }
-
-            else if (type === 'education') {
-                let schoolsHtml = '';
-                (data.schools || []).forEach(school => {
-                    schoolsHtml += `
-                    <div class="p-5 rounded-2xl transition-all ${isMinimal ? 'bg-slate-50 border border-slate-200' : 'bg-[#0d0e12] border border-[#1f222c]'}">
-                        <div class="flex justify-between items-start gap-4">
-                            <div>
-                                <h3 class="text-sm font-bold uppercase tracking-wide ${isMinimal ? 'text-slate-900' : 'text-white'}">${school.institution || ''}</h3>
-                                <p class="text-xs font-semibold text-purple-400 mt-0.5">${school.degree || ''}</p>
-                            </div>
-                            <span class="text-[10px] font-mono px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md whitespace-nowrap">${school.years || ''}</span>
-                        </div>
-                        ${school.score ? `<div class="mt-3 pt-2 border-t ${isMinimal ? 'border-slate-200' : 'border-slate-900'} text-xs ${isMinimal ? 'text-slate-500' : 'text-slate-400'}">Performance Metric: <span class="font-mono font-bold ${isMinimal ? 'text-slate-900' : 'text-white'}">${school.score}</span></div>` : ''}
-                    </div>\n`;
-                });
-                sectionsHtml += `
-                <!-- 3. EDUCATION SECTION -->
-                <section class="py-6 space-y-4">
-                    <h2 class="text-xs uppercase font-black tracking-widest text-purple-400">Educational Background</h2>
-                    <div class="space-y-4">${schoolsHtml}</div>
-                </section>\n`;
-            }
-
-            else if (type === 'skills') {
-                let itemsHtml = '';
-                (data.items || []).forEach(skill => {
-                    itemsHtml += `
-                    <div class="space-y-1.5">
-                        <div class="flex justify-between items-center text-xs font-bold">
-                            <span class="${isMinimal ? 'text-slate-900' : 'text-white'}">${skill.name || ''}</span>
-                            <span class="text-purple-400 font-mono">${skill.level || 50}%</span>
-                        </div>
-                        <div class="w-full h-2 rounded-full overflow-hidden ${isMinimal ? 'bg-slate-200' : 'bg-slate-900'}">
-                            <div class="h-full bg-purple-500 rounded-full" style="width: ${skill.level || 50}%"></div>
-                        </div>
-                    </div>\n`;
-                });
-                sectionsHtml += `
-                <!-- 4. SKILLS SECTION -->
-                <section class="py-6 space-y-4">
-                    <h2 class="text-xs uppercase font-black tracking-widest text-purple-400">Core Expertise Metrics</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">${itemsHtml}</div>
-                </section>\n`;
-            }
-
-            else if (type === 'projects_grid') {
-                let projsHtml = '';
-                (data.projects || []).forEach(project => {
-                    let tagsHtml = '';
-                    (project.tags || []).forEach(tag => {
-                        tagsHtml += `<span class="text-[9px] font-bold px-2 py-0.5 bg-slate-800 text-slate-300 border border-slate-700/60 rounded">${tag}</span>`;
-                    });
-
-                    projsHtml += `
-                    ${project.projectUrl ? `<a href="${project.projectUrl.startsWith('http') ? project.projectUrl : 'https://' + project.projectUrl}" target="_blank" rel="noopener" class="no-underline block group">` : '<div class="block">'}
-                    <div class="p-5 rounded-2xl flex flex-col justify-between h-full space-y-4 shadow-md transition-all ${isMinimal ? 'bg-slate-50 border border-slate-200 hover:bg-slate-100' : 'bg-[#0d0e12] border border-[#1f222c] hover:border-purple-500/40'}">
-                        <div class="space-y-2">
-                            <div class="flex justify-between items-center gap-2">
-                                <h3 class="text-sm font-bold uppercase tracking-wide ${isMinimal ? 'text-slate-900' : 'text-white'}">${project.title || ''}</h3>
-                                ${project.projectUrl ? '<span class="text-[10px] text-purple-400 font-bold shrink-0">🔗 Live</span>' : ''}
-                            </div>
-                            <p class="text-xs leading-relaxed ${isMinimal ? 'text-slate-600' : 'text-slate-400'}">${project.desc || ''}</p>
-                        </div>
-                        <div class="flex flex-wrap gap-1">${tagsHtml}</div>
-                    </div>
-                    ${project.projectUrl ? '</a>' : '</div>'}\n`;
-                });
-                sectionsHtml += `
-                <!-- 5. PROJECTS SECTION -->
-                <section class="py-6 space-y-4">
-                    <h2 class="text-xs uppercase font-black tracking-widest text-purple-400">${data.title || 'Featured Innovations'}</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">${projsHtml}</div>
-                </section>\n`;
-            }
-
-            else if (type === 'contact') {
-                sectionsHtml += `
-                <!-- 6. CONTACT SECTION -->
-                <section class="text-center py-10 border-t ${isMinimal ? 'border-slate-200' : 'border-slate-900'} mt-8 space-y-3">
-                    <h2 class="text-xs uppercase font-black tracking-widest text-purple-400">Get In Touch</h2>
-                    <p class="text-xs max-w-xs mx-auto leading-relaxed ${isMinimal ? 'text-slate-600' : 'text-slate-400'}">
-                        ${data.text || ''}
-                    </p>
-                </section>\n`;
-            }
         });
 
-        const fullHtmlDocument = `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${userData.name || 'Developer'} - Portfolio Portfolio</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .animate-fade-in { animation: fadeIn 0.8s ease-out forwards; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-    </style>
-</head>
-<body class="min-h-screen transition-colors duration-300 ${isMinimal ? 'bg-white text-slate-900' : 'bg-[#090a0f] text-slate-100'} px-6 py-12 flex flex-col items-center">
-    <div class="w-full max-w-3xl space-y-8">
-        ${sectionsHtml}
-    </div>
-</body>
-</html>`;
-
+        const fullHtmlDocument = `<!DOCTYPE html><html><head><script src="https://cdn.tailwindcss.com"></script></head><body class="p-12">${sectionsHtml}</body></html>`;
         const blob = new Blob([fullHtmlDocument], { type: 'text/html;charset=utf-8;' });
         const downloadUrl = URL.createObjectURL(blob);
         const anchorElement = document.createElement('a');
         anchorElement.href = downloadUrl;
-        anchorElement.download = `${(userData.name || 'portfolio').toLowerCase().replace(/\s+/g, '_')}_portfolio.html`;
-        
+        anchorElement.download = "portfolio_site.html";
         document.body.appendChild(anchorElement);
         anchorElement.click();
         document.body.removeChild(anchorElement);
-        URL.revokeObjectURL(downloadUrl);
     };
 
     const safeToolKey = activeTool ? String(activeTool).toUpperCase().trim() : "";
+    const currentType = selectedSection ? (selectedSection.section_type || '').toLowerCase().trim() : "hero";
 
     const handleFieldChange = (key, value) => {
         const updated = { ...localContent, [key]: value };
@@ -250,9 +148,7 @@ export default function AIRefinementPanel({
         }
     };
 
-    // -----------------------------------------------------------------
-    // 🎨 TOOL 1: BRAND THEMES VIEW
-    // -----------------------------------------------------------------
+    // --- TOOL VIEW 1: BRAND THEMES ---
     if (safeToolKey.includes("THEME")) {
         return (
             <div className="w-80 h-full bg-[#13151c] border-l border-[#1f222c] p-6 flex flex-col justify-start select-none shrink-0 overflow-y-auto">
@@ -269,7 +165,7 @@ export default function AIRefinementPanel({
                                 type="button"
                                 onClick={() => setUserData({ ...userData, theme: themeObj.id })}
                                 className={`w-full flex items-center justify-between px-4 py-3.5 rounded-xl border text-xs font-bold text-left transition-all duration-200 ${
-                                    isSelected ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg shadow-purple-500/5' : 'border-[#232635] bg-[#0d0e12] text-slate-400 hover:border-slate-700 hover:text-slate-200'
+                                    isSelected ? 'border-purple-500 bg-purple-500/10 text-white shadow-lg' : 'border-[#232635] bg-[#0d0e12] text-slate-400 hover:border-slate-700'
                                 }`}
                             >
                                 <span>{themeObj.name}</span>
@@ -281,9 +177,7 @@ export default function AIRefinementPanel({
         );
     }
 
-    // -----------------------------------------------------------------
-    // 🖼️ TOOL 2: IMAGE CUSTOMIZER VIEW
-    // -----------------------------------------------------------------
+    // --- TOOL VIEW 2: IMAGE CUSTOMIZER ---
     if (safeToolKey.includes("IMAGE") || safeToolKey.includes("CUSTOMIZER")) {
         return (
             <div className="w-80 h-full bg-[#13151c] border-l border-[#1f222c] p-6 flex flex-col justify-start select-none shrink-0 overflow-y-auto space-y-6">
@@ -299,9 +193,7 @@ export default function AIRefinementPanel({
         );
     }
 
-    // -----------------------------------------------------------------
-    // 💻 TOOL 3: CODE EXPORT VIEW 
-    // -----------------------------------------------------------------
+    // --- TOOL VIEW 3: CODE EXPORT ---
     if (safeToolKey.includes("CODE") || safeToolKey.includes("EXPORT")) {
         return (
             <div className="w-80 h-full bg-[#13151c] border-l border-[#1f222c] p-6 flex flex-col justify-start select-none shrink-0 overflow-y-auto space-y-6">
@@ -311,7 +203,7 @@ export default function AIRefinementPanel({
                 </div>
 
                 <div className="bg-[#0d0e12] border border-[#232635] rounded-xl p-4 font-mono text-[10px] text-emerald-400 overflow-x-auto whitespace-pre-wrap leading-relaxed">
-                    {`<!DOCTYPE html>\n<html>\n  <head>\n    <!-- Compiled Tailwind Production Grid Layer -->\n  </head>\n  <body>\n    <!-- Rendered Portfolio Sections Loop -->\n  </body>\n</html>`}
+                    {`<!DOCTYPE html>\n<html>\n  <head>\n    \n  </head>\n  <body>\n    \n  </body>\n</html>`}
                 </div>
 
                 <button 
@@ -324,30 +216,261 @@ export default function AIRefinementPanel({
         );
     }
 
-    const currentType = selectedSection ? (selectedSection.section_type || '').toLowerCase().trim() : "";
+    // --- TOOL VIEW 4: ✨ AI STUDIO HUB ---
+    if (safeToolKey.includes("GENERATOR")) {
+        return (
+            <div className="w-80 h-full bg-[#13151c] border-l border-[#1f222c] flex flex-col shrink-0 overflow-hidden">
+                
+                {/* Context Anchor Header */}
+                <div className="p-4 bg-[#0d0e12]/60 border-b border-[#1f222c] flex items-center justify-between shrink-0">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Current Section</span>
+                    <span className="text-[10px] font-mono font-black px-2 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20 rounded-md">
+                        {currentType.toUpperCase()}
+                    </span>
+                </div>
 
+                {/* Sub-Tabs Navigation Header */}
+                <div className="grid grid-cols-3 bg-[#0d0e12] border-b border-[#1f222c] p-1 font-bold text-[10px] uppercase text-center shrink-0">
+                    {['Generate', 'Improve', 'Review'].map(tab => (
+                        <button 
+                            key={tab}
+                            type="button"
+                            onClick={() => setStudioSubTab(tab)}
+                            className={`py-1.5 rounded-lg transition-all cursor-pointer ${studioSubTab === tab ? 'bg-purple-600 text-white font-black' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                            {tab}
+                        </button>
+                    ))}
+                </div>
+
+                {/* Dynamic Content Stream Area */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    
+                 {/* 📝 SUB-TAB: Generate */}
+                 {studioSubTab === 'Generate' && (
+           <div className="space-y-3">
+           <div className="text-[9px] uppercase font-black tracking-widest text-slate-500">Section Blueprints</div>
+        
+        {/* 1. Hero Section Generators */}
+        {currentType === 'hero' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE a high-impact Hero section. Include: heading (Name), subheading (Professional Title/Tagline), and placeholders for live/design URLs.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">✨ Generate Hero Section</span>
+                <span className="text-[9px] text-slate-500 font-medium">Assembles profile headers, titles, and CTA links.</span>
+            </button>
+        )}
+
+        {/* 2. About Section Generators */}
+        {currentType === 'about' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE a professional About Me bio. Focus on technical background, engineering goals, and passion for innovation.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">👤 Generate About Me Bio</span>
+                <span className="text-[9px] text-slate-500 font-medium">Writes a technical student/professional summary.</span>
+            </button>
+        )}
+
+        {/* 3. Skills Section Generators */}
+        {currentType === 'skills' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE a categorized technical skills list including Frontend, Backend, Database, and Tools.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">📊 Generate Skill Stack</span>
+                <span className="text-[9px] text-slate-500 font-medium">Populates categorization lists for technical expertise.</span>
+            </button>
+        )}
+
+        {/* 4. Projects Section Generators */}
+        {currentType === 'projects_grid' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE professional project cards including titles, technical descriptions, tags, and placeholder live/repo links.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">🚀 Generate Project Grid</span>
+                <span className="text-[9px] text-slate-500 font-medium">Creates showcase cards with tech stack tags.</span>
+            </button>
+        )}
+
+        {/* 5. Experience Section Generators */}
+        {currentType === 'experience' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE professional work experience entries including role, company, dates, and bulleted impact statements.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">💼 Generate Experience Row</span>
+                <span className="text-[9px] text-slate-500 font-medium">Adds professional history and role descriptions.</span>
+            </button>
+        )}
+
+        {/* 6. Education Section Generators */}
+        {currentType === 'education' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE an education entry including institution name, degree program, graduation year, and GPA/score.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">🎓 Generate Education Record</span>
+                <span className="text-[9px] text-slate-500 font-medium">Adds academic credential formatting blocks.</span>
+            </button>
+        )}
+
+        {/* 7. Contact Section Generators */}
+        {currentType === 'contact' && (
+            <button type="button" onClick={() => onSubmitPrompt("GENERATE a compelling Contact/CTA section for potential recruiters and collaborators.")} className="w-full p-3 text-left bg-[#0d0e12] border border-purple-500/20 hover:border-purple-500 text-slate-200 text-xs rounded-xl transition-all flex flex-col gap-1 cursor-pointer outline-none">
+                <span className="font-bold text-purple-400">📧 Generate Contact CTA</span>
+                <span className="text-[9px] text-slate-500 font-medium">Writes an inviting call-to-action message.</span>
+            </button>
+        )}
+    </div>
+)}
+
+                    {/* ✏️ SUB-TAB: Improve */}
+                    {studioSubTab === 'Improve' && (
+                        <div className="space-y-4">
+                            <div>
+                                <div className="text-[9px] uppercase font-black tracking-widest text-slate-500 mb-2">Tone Adjustments</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    {[
+                                        { title: '💼 Professional', prompt: 'Rewrite using an advanced, recruiter-friendly corporate voice layout.' },
+                                        { title: '⚡ Startup / Agile', prompt: 'Polish wording metrics using a quick, disruptive startup tone.' },
+                                        { title: '🔮 Cyberpunk', prompt: 'Translate styling content text streams into high-fidelity neon syntax paradigms.' },
+                                        { title: '🎯 Recruiter Pick', prompt: 'Optimize impact measurements and emphasize system achievements for tracking managers.' }
+                                    ].map(item => (
+                                        <button 
+                                            key={item.title}
+                                            type="button"
+                                            onClick={() => onSubmitPrompt(`For this active portfolio block type "${currentType}", please preserve JSON data constraints and execute this instruction: ${item.prompt}`)}
+                                            className="p-2.5 text-center bg-[#0d0e12] border border-[#232635] hover:border-purple-500 text-slate-300 text-[10px] font-bold rounded-xl transition-all cursor-pointer outline-none font-sans"
+                                        >
+                                            {item.title}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div className="text-[9px] uppercase font-black tracking-widest text-slate-500">Structural Utilities</div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button 
+                                        type="button" 
+                                        onClick={() => onSubmitPrompt(`Compress and shorten text structures for this segment type "${currentType}" to maximize clean presentation readability indices.`)}
+                                        className="py-2 bg-[#0d0e12] border border-slate-800 hover:border-purple-500 text-slate-400 text-[10px] font-bold rounded-lg transition-all"
+                                    >
+                                        🔍 Shorten Text
+                                    </button>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => onSubmitPrompt(`Expand details and add technical metrics depth for this portfolio block item type "${currentType}".`)}
+                                        className="py-2 bg-[#0d0e12] border border-slate-800 hover:border-purple-500 text-slate-400 text-[10px] font-bold rounded-lg transition-all"
+                                    >
+                                        📈 Expand Scope
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* 📊 SUB-TAB: Review (⚡ FULLY INTEGRATED LIVE BACKEND ANALYSIS) */}
+                    {studioSubTab === 'Review' && (
+                        <div className="space-y-4 font-sans leading-normal">
+                            <div className="text-[9px] uppercase font-black tracking-widest text-slate-500">Real-Time Canvas Review</div>
+                            
+                            {loadingReview ? (
+                                <div className="text-center py-6 text-xs text-slate-500 italic animate-pulse">Running portfolio score calculation...</div>
+                            ) : reviewData ? (
+                                <div className="space-y-4">
+                                    {/* Overall Score Progress Section */}
+                                    <div className="p-4 bg-[#0d0e12] border border-[#232635] rounded-xl space-y-2.5">
+                                        <div className="flex justify-between items-center text-xs font-bold">
+                                            <span className="text-slate-400">Holistic Score</span>
+                                            <span className="text-emerald-400 font-mono font-black text-sm">{reviewData.overall_score}%</span>
+                                        </div>
+                                        <div className="w-full h-2 bg-slate-900 rounded-full overflow-hidden">
+                                            <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${reviewData.overall_score}%` }}></div>
+                                        </div>
+                                    </div>
+
+                                    {/* Missing Elements Checklist */}
+                                    {reviewData.missing_items && reviewData.missing_items.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <div className="text-[9px] uppercase font-black text-slate-500 tracking-wider">Missing Variables</div>
+                                            <div className="bg-[#0d0e12]/60 border border-[#232635] p-3 rounded-xl space-y-1">
+                                                {reviewData.missing_items.map((item, idx) => (
+                                                    <div key={idx} className="text-[11px] text-rose-400 font-medium">⚠️ Missing: {item}</div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Suggestions Log */}
+                                    <div className="space-y-1.5">
+                                        <div className="text-[9px] uppercase font-black text-slate-500 tracking-wider">AI Suggestions Blueprint</div>
+                                        <div className="space-y-1.5">
+                                            {reviewData.suggestions.map((suggestion, idx) => (
+                                                <div key={idx} className="bg-[#0d0e12] p-2.5 border border-[#1f222c] rounded-xl text-[11px] text-slate-400 leading-normal">
+                                                    💡 {suggestion}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-4 text-xs text-slate-600 italic">No analysis payload returned from endpoint path.</div>
+                            )}
+                        </div>
+                    )}
+
+                </div>
+
+                {/* AI Terminal Streams Log View */}
+                <div className="h-24 border-t border-[#1f222c] bg-[#0d0e12]/40 p-3 font-mono text-[10px] text-slate-500 overflow-y-auto shrink-0">
+                    <div>// Studio Pipeline Console Log Hook</div>
+                    {logs && logs.length > 0 ? (
+                        <div className="text-purple-400 mt-1">{typeof logs[0] === 'object' ? logs[0].desc : logs[0]}</div>
+                    ) : ( <div className="italic mt-1">Ready for inputs...</div> )}
+                </div>
+
+                {/* Prompt Chat Box Bar Layer */}
+                <form onSubmit={handleSubmit} className="p-3 border-t border-[#1f222c] bg-[#0d0e12] shrink-0">
+                    <div className="relative flex items-center bg-[#13151c] border border-[#232635] rounded-xl focus-within:border-purple-500 transition-all">
+                        <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.docx,.txt" className="hidden" />
+                        <button type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()} className="pl-3 pr-1 text-slate-500 hover:text-purple-400 transition-colors text-xs font-bold cursor-pointer">📎</button>
+                        <input type="text" placeholder="Ask AI Studio anything..." className="w-full bg-transparent pl-2 pr-10 py-2.5 text-xs text-white outline-none font-medium" value={promptText} onChange={(e) => setPromptText(e.target.value)} />
+                        <button type="submit" className="absolute right-3 text-purple-400 hover:text-purple-300 font-bold text-xs cursor-pointer">⚡</button>
+                    </div>
+                </form>
+            </div>
+        );
+    }
+
+    // -----------------------------------------------------------------
+    // DEFAULT BRANCH VIEW: MANUAL PROPERTY TEXT FIELD FORM EDITOR
+    // -----------------------------------------------------------------
     return (
         <div className="w-80 h-full bg-[#13151c] border-l border-[#1f222c] flex flex-col select-none shrink-0 overflow-hidden">
-            <div className="p-6 border-b border-[#1f222c] space-y-4 shrink-0 max-h-[60vh] overflow-y-auto">
-                <h3 className="text-xs uppercase font-black tracking-wider text-purple-400">⚡ Content Generator</h3>
+            <div className="p-6 border-b border-[#1f222c] space-y-4 shrink-0 flex-1 overflow-y-auto">
+                <div className="mb-2">
+                    <h3 className="text-xs uppercase font-black tracking-wider text-slate-200">📝 Manual Property Editor</h3>
+                    <p className="text-[10px] text-slate-500 mt-0.5">Direct manual editor mode. Select any element card inside the canvas to edit text by hand.</p>
+                </div>
                 
                 {selectedSection ? (
                     <div className="space-y-4">
-                        <label className="block text-[10px] uppercase font-bold tracking-wider text-slate-500">Editing Target: [{currentType.toUpperCase()}]</label>
+                        <label className="block text-[10px] uppercase font-bold tracking-wider text-purple-400">Editing Target: [{currentType.toUpperCase()}]</label>
                         
                         {currentType === 'hero' && (
                             <div className="space-y-3">
-                                <div className="space-y-1"><input type="text" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none" value={localContent.heading || ''} onChange={(e) => handleFieldChange('heading', e.target.value)} /></div>
-                                <div className="space-y-1"><textarea rows="3" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-normal" value={localContent.subheading || ''} onChange={(e) => handleFieldChange('subheading', e.target.value)} /></div>
+                                <div className="space-y-1">
+                                    <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Heading Name</span>
+                                    <input type="text" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none" value={localContent.heading || ''} onChange={(e) => handleFieldChange('heading', e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                    <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Subheading headline</span>
+                                    <textarea rows="3" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-normal" value={localContent.subheading || ''} onChange={(e) => handleFieldChange('subheading', e.target.value)} />
+                                </div>
                                 <div className="grid grid-cols-2 gap-2 pt-1">
-                                    <div className="space-y-1"><input type="text" placeholder="https://..." className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:border-purple-500 outline-none" value={localContent.liveUrl || ''} onChange={(e) => handleFieldChange('liveUrl', e.target.value)} /></div>
-                                    <div className="space-y-1"><input type="text" placeholder="https://..." className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:border-purple-500 outline-none" value={localContent.designUrl || ''} onChange={(e) => handleFieldChange('designUrl', e.target.value)} /></div>
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">See Live Link</span>
+                                        <input type="text" placeholder="https://..." className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:border-purple-500 outline-none" value={localContent.liveUrl || ''} onChange={(e) => handleFieldChange('liveUrl', e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Design link repo</span>
+                                        <input type="text" placeholder="https://..." className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-2.5 py-1.5 text-[11px] text-white focus:border-purple-500 outline-none" value={localContent.designUrl || ''} onChange={(e) => handleFieldChange('designUrl', e.target.value)} />
+                                    </div>
                                 </div>
                             </div>
                         )}
 
                         {currentType === 'about' && (
-                            <div className="space-y-1"><textarea rows="5" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-relaxed" value={localContent.bio || ''} onChange={(e) => handleFieldChange('bio', e.target.value)} /></div>
+                            <div className="space-y-1">
+                                <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Biography Summary text</span>
+                                <textarea rows="5" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-relaxed" value={localContent.bio || ''} onChange={(e) => handleFieldChange('bio', e.target.value)} />
+                            </div>
                         )}
 
                         {currentType === 'education' && (
@@ -393,33 +516,16 @@ export default function AIRefinementPanel({
                         )}
 
                         {currentType === 'contact' && (
-                            <div className="space-y-1"><textarea rows="3" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-normal" value={localContent.text || ''} onChange={(e) => handleFieldChange('text', e.target.value)} /></div>
+                            <div className="space-y-1">
+                                <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">Call to action line text</span>
+                                <textarea rows="3" className="w-full bg-[#0d0e12] border border-[#232635] rounded-xl px-3 py-2 text-xs text-white focus:border-purple-500 outline-none resize-none leading-normal" value={localContent.text || ''} onChange={(e) => handleFieldChange('text', e.target.value)} />
+                            </div>
                         )}
                     </div>
                 ) : (
                     <div className="bg-[#0d0e12]/40 border border-[#232635]/60 rounded-xl p-3 text-center"><p className="text-[11px] text-slate-500 italic">Click on any section card block in the center canvas to inspect its properties.</p></div>
                 )}
             </div>
-
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-                <h4 className="text-[10px] uppercase font-bold tracking-wider text-slate-500">AI Tool Streams Log</h4>
-                <div className="space-y-2">
-                    {logs && logs.length > 0 ? logs.map((log, i) => (
-                        <div key={i} className="bg-[#0d0e12] border border-[#232635] p-3 rounded-lg text-[11px] font-mono text-slate-400 leading-relaxed">
-                            <span>{log && typeof log === 'object' ? log.desc : log}</span>
-                        </div>
-                    )) : ( <p className="text-[11px] text-slate-600 italic">No execution logs in this session context.</p> )}
-                </div>
-            </div>
-
-            <form onSubmit={handleSubmit} className="p-4 border-t border-[#1f222c] bg-[#0d0e12]/50 shrink-0">
-                <div className="relative flex items-center bg-[#0d0e12] border border-[#232635] rounded-xl focus-within:border-purple-500 transition-all">
-                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.docx,.txt" className="hidden" />
-                    <button type="button" onClick={() => fileInputRef.current && fileInputRef.current.click()} className="pl-3 pr-1 text-slate-500 hover:text-purple-400 transition-colors text-xs font-bold cursor-pointer">📎</button>
-                    <input type="text" placeholder="Ask AI to generate content..." className="w-full bg-transparent pl-2 pr-10 py-3 text-xs text-white outline-none font-medium" value={promptText} onChange={(e) => setPromptText(e.target.value)} />
-                    <button type="submit" className="absolute right-3 text-purple-400 hover:text-purple-300 font-bold text-xs cursor-pointer">⚡</button>
-                </div>
-            </form>
         </div>
     );
 }
