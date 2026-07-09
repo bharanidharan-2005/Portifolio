@@ -11,7 +11,10 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
 
+load_dotenv()  # This loads the .env file into os.environ
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -80,7 +83,17 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'main_config.wsgi.application'
 
+# --- EMAIL SMTP CONFIGURATION ---
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
 
+# ⚠️ Replace with your actual Gmail address
+EMAIL_HOST_USER = 'laughinggupta2025@gmail.com' 
+
+# ⚠️ Replace with the 16-character App Password you just generated (keep the quotes)
+EMAIL_HOST_PASSWORD = 'cgdy daby aikz qsit'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
